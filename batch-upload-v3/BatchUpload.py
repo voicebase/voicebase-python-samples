@@ -11,6 +11,7 @@ import argparse
 import csv
 import json
 import os
+from collections import namedtuple
 
 from VoiceBaseV3Client import VoiceBaseV3Client
 
@@ -81,19 +82,80 @@ def main():
 
     args = parser.parse_args()
 
-    BatchUpload().upload(
-        args.inputMediaFilenameList, args.mediadir, args.results, args.token
+    batch_upload = BatchUpload(args.token)
+    batch_upload.upload(
+        args.inputMediaFilenameList, args.mediadir, args.results
     )
 
 class BatchUpload:
-    def __init(self):
+    def __init__(self, token):
+        self.voicebase = VoiceBaseV3Client(token = token)
+
+    # Data classes woule be great here, when Python 3.7 is common
+    class UploadItem:
+        def __init__(self, **kwargs):
+            self.media_url = kwargs.get('media_url')
+            self.filename = kwargs.get('filename')
+            self.mime_type = kwargs.get('mime_type')
+            self.configuration = kwargs.get('configuration')
+            self.configuration_filename = kwargs.get('configuration_filename')
+            self.metadata = kwargs.get('metadata')
+            self.metadata_filename = kwargs.get('metadata_filename')
+            self.extra_metadata_columns = kwargs.get('extra_metadata_columns')
+
+
+        def is_by_url(self):
+            return self.media_url is not None
+
+        def is_media_update(self):
+            return self.media_id is not None
+
+    def MediaFilenames(self, list_path):
+        with open(list_path, 'r') as list_file:
+            for raw_filename in list_file:
+                filename = raw_filename.rstrip()
+                yield filename
+
+    def Uploads(self, mdir, media_filenames):
+        Upload = namedtuple('Upload', 'filename response')
+
+        for media_filename in media_filenames:
+            pathandfile = os.path.join(mdir, filename)
+            response = self.upload_one(
+                None,
+                pathandfile,
+                filename,
+                self.generate_configuration()
+            )
+
+            yield Upload(filename = filename, response = response)
+
+    def Results(self, results_file, uploads):
+        Result = namedtuple('Result', 'filename response row')
+        with open(results_path, 'w') as results_file:
+            results_writer = csv.writer(
+              results_file, delimiter = ',', quotechar = '"'
+            )
+
+            for upload in uploads:
+                media_id = upload.response.get('mediaId')
+                status = upload.response.get('status')
+
+                row = [ upload.filename, media_id, status ]
+                results_writer.writerow(row)
+
+                yield Result(
+                    filename = upload.filename,
+                    response = upload.response,
+                    row = row
+                )
+
+    # TODO: replace upload() with generator-based implementation here
+    def upload_from_media_filename_list(self, list_path, mdir, results_path, token):
         pass
 
     # ********* def upload  ***********
-    def upload(self, list_path, mdir, results_path, token):
-
-      client = VoiceBaseV3Client(token = token)
-      media = client.media
+    def upload(self, list_path, mdir, results_path):
 
       counter = 0
 
@@ -112,7 +174,7 @@ class BatchUpload:
 
             pathandfile = os.path.join(mdir, filename)
 
-            response = self.upload_one(media, pathandfile, filename, self.generate_configuration())
+            response = self.upload_one(pathandfile, filename, self.generate_configuration())
             media_id = response['mediaId']
             status = response['status']
 
@@ -140,17 +202,17 @@ class BatchUpload:
       # executor: v2 is not required for newer accounts
 
     # ********* def upload one ***********
-    def upload_one(self, media, filepath, filename, configuration):
-      with open(filepath, 'rb') as media_file:
+    def upload_one(self, filepath, filename, configuration):
+        with open(filepath, 'rb') as media_file:
 
-        response = media.post(
-            media = media_file,
-            filename = 'unknownfile',
-            mime_type = 'application/octet-stream',
-            configuration = configuration
-        )
+            response = self.voicebase.media.post(
+                media = media_file,
+                filename = filename,
+                mime_type = 'application/octet-stream',
+                configuration = configuration
+            )
 
-      return response
+        return response
 
 if __name__ == "__main__":
   main()
