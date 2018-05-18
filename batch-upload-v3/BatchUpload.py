@@ -14,6 +14,7 @@ import os
 from collections import namedtuple
 
 from VoiceBaseV3Client import VoiceBaseV3Client
+from BatchUploadInput import *
 
 # ********* def main ***********
 def main():
@@ -122,21 +123,16 @@ class BatchUpload:
                 filename = raw_filename.rstrip()
                 yield filename
 
-    def Uploads(self, media_filenames):
-        Upload = namedtuple('Upload', 'filename response')
+    def Uploads(self, input_iterable):
+        Upload = namedtuple('Upload', 'id response')
 
-        for media_filename in media_filenames:
-            media_filepath = os.path.join(self.media_directory, media_filename)
-            response = self.upload_one(
-                media_filepath,
-                media_filename,
-                self.generate_configuration()
-            )
+        for input in input_iterable:
+            response = self.upload_one(input)
 
-            yield Upload(filename = media_filename, response = response)
+            yield Upload(id = input.id, response = response)
 
     def Results(self, uploads, results_path):
-        Result = namedtuple('Result', 'filename response row')
+        Result = namedtuple('Result', 'id response row')
         with open(results_path, 'w') as results_file:
             results_writer = csv.writer(
               results_file, delimiter = ',', quotechar = '"'
@@ -146,18 +142,22 @@ class BatchUpload:
                 media_id = upload.response.get('mediaId')
                 status = upload.response.get('status')
 
-                row = [ upload.filename, media_id, status ]
+                row = [ upload.id, media_id, status ]
                 results_writer.writerow(row)
 
                 yield Result(
-                    filename = upload.filename,
+                    id = upload.id,
                     response = upload.response,
                     row = row
                 )
 
     def upload_from_media_filename_list(self, list_path, results_path):
-        media_filenames_generator = self.MediaFilenames(list_path)
-        uploads_generator = self.Uploads(media_filenames_generator)
+        input_generator = BatchUploadListReader(
+            media_directory = self.media_directory
+        ).MediaFilenames(
+            list_filepath = list_path
+        )
+        uploads_generator = self.Uploads(input_generator)
         results_generator = self.Results(uploads_generator, results_path)
 
         for result in results_generator:
@@ -171,17 +171,26 @@ class BatchUpload:
       return json.dumps({})
 
     # ********* def upload one ***********
-    def upload_one(self, filepath, filename, configuration):
-        with open(filepath, 'rb') as media_file:
+    def upload_one(self, input): #filepath, filename, configuration):
+        if input.is_url:
+            raise Exception('not implemented')
+        elif input.is_file:
+            with open(input.media_filepath, 'rb') as media_file:
 
-            response = self.voicebase.media.post(
-                media = media_file,
-                filename = filename,
-                mime_type = 'application/octet-stream',
-                configuration = configuration
-            )
+                response = self.voicebase.media.post(
+                    media = media_file,
+                    filename = input.media_filename,
+                    mime_type = input.mime_type,
+                    configuration = input.configuration
+                )
 
-        return response
+            return response
+        elif input.is_media_update:
+            raise Exception('not implemented')
+        else:
+            raise Exception('no known type - none of: file, url, media update')
+
+
 
 if __name__ == "__main__":
   main()
