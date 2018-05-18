@@ -62,7 +62,7 @@ def main():
     )
 
     parser.add_argument(
-        '--mediadir',
+        '--inputMediaDirectory',
         help = 'path to local media files',
         required = False,
         default = './'
@@ -82,14 +82,20 @@ def main():
 
     args = parser.parse_args()
 
-    batch_upload = BatchUpload(args.token)
-    batch_upload.upload(
-        args.inputMediaFilenameList, args.mediadir, args.results
+    batch_upload = BatchUpload(
+        token = args.token,
+        media_directory = args.inputMediaDirectory
     )
+    batch_upload.upload_from_media_filename_list(
+        args.inputMediaFilenameList,
+        args.results
+    )
+    # batch_upload.upload(args.inputMediaFilenameList, args.mediadir, args.results)
 
 class BatchUpload:
-    def __init__(self, token):
-        self.voicebase = VoiceBaseV3Client(token = token)
+    def __init__(self, **kwargs):
+        self.voicebase = VoiceBaseV3Client(token = kwargs['token'])
+        self.media_directory = kwargs['media_directory']
 
     # Data classes woule be great here, when Python 3.7 is common
     class UploadItem:
@@ -116,21 +122,20 @@ class BatchUpload:
                 filename = raw_filename.rstrip()
                 yield filename
 
-    def Uploads(self, mdir, media_filenames):
+    def Uploads(self, media_filenames):
         Upload = namedtuple('Upload', 'filename response')
 
         for media_filename in media_filenames:
-            pathandfile = os.path.join(mdir, filename)
+            media_filepath = os.path.join(self.media_directory, media_filename)
             response = self.upload_one(
-                None,
-                pathandfile,
-                filename,
+                media_filepath,
+                media_filename,
                 self.generate_configuration()
             )
 
-            yield Upload(filename = filename, response = response)
+            yield Upload(filename = media_filename, response = response)
 
-    def Results(self, results_file, uploads):
+    def Results(self, uploads, results_path):
         Result = namedtuple('Result', 'filename response row')
         with open(results_path, 'w') as results_file:
             results_writer = csv.writer(
@@ -151,55 +156,20 @@ class BatchUpload:
                 )
 
     # TODO: replace upload() with generator-based implementation here
-    def upload_from_media_filename_list(self, list_path, mdir, results_path, token):
-        pass
+    def upload_from_media_filename_list(self, list_path, results_path):
+        media_filenames_generator = self.MediaFilenames(list_path)
+        uploads_generator = self.Uploads(media_filenames_generator)
+        results_generator = self.Results(uploads_generator, results_path)
 
-    # ********* def upload  ***********
-    def upload(self, list_path, mdir, results_path):
+        for result in results_generator:
+            print(result)
 
-      counter = 0
-
-      with open(list_path, 'r') as list_file:
-        with open(results_path, 'w') as results_file:
-          results_writer = csv.writer(
-            results_file, delimiter = ',', quotechar = '"'
-          )
-
-          results_writer.writerow([ 'file', 'mediaId', 'status' ]) # write headers
-
-          for raw_filename in list_file:
-            filename = raw_filename.rstrip()
-
-            counter = counter + 1
-
-            pathandfile = os.path.join(mdir, filename)
-
-            response = self.upload_one(pathandfile, filename, self.generate_configuration())
-            media_id = response['mediaId']
-            status = response['status']
-
-            results_writer.writerow([ filename, media_id, status ]);
 
     # ********* def generate config json ***********
     def generate_configuration(self):
       # Note: we are intentionally going against Python's recommending
       # single-quote style to have valid copy/paste-able JSON
-      return json.dumps({
-        # "configuration": {
-        #   "ingest" : {
-        #     "channels": {
-        #       "left": {
-        #         "speaker": "caller"
-        #       },
-        #       "right": {
-        #         "speaker": "agent"
-        #       }
-        #     }
-        #   },
-        #   "executor": "v2"
-        # }
-      })
-      # executor: v2 is not required for newer accounts
+      return json.dumps({})
 
     # ********* def upload one ***********
     def upload_one(self, filepath, filename, configuration):
