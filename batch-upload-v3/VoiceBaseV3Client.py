@@ -113,6 +113,7 @@ class VoiceBaseV3Client:
             return self.client.delete('/media/' + self.media_id)
 
         def post(self, **kwargs):
+            attachments = {}
             configuration = self.client._get_optional_kwarg(kwargs, 'configuration')
             if configuration is not None:
                 attachments['configuration'] = (

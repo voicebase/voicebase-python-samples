@@ -61,12 +61,17 @@ def main():
         default = 'mediaId',
         required = False
     )
-
     parser.add_argument(
         '--inputMediaDirectory',
         help = 'path to local media files',
         required = False,
         default = './'
+    )
+    parser.add_argument(
+        '--configuration',
+        help = 'JSON configuration for VoiceBase API',
+        required = False,
+        default = json.dumps({})
     )
     parser.add_argument(
         '--results',
@@ -85,18 +90,32 @@ def main():
 
     batch_upload = BatchUpload(
         token = args.token,
-        media_directory = args.inputMediaDirectory
+        media_directory = args.inputMediaDirectory,
+        input_media_id_column = args.inputMediaIdColumn,
+        default_configuration = args.configuration
     )
-    batch_upload.upload_from_media_filename_list(
-        args.inputMediaFilenameList,
-        args.results
+
+    batch_upload.process(
+        input_media_filename_list = args.inputMediaFilenameList,
+        input_csv = args.inputCsv,
+        results_path = args.results,
+        update_existing_media = args.updateExistingMedia
     )
     # batch_upload.upload(args.inputMediaFilenameList, args.mediadir, args.results)
 
 class BatchUpload:
     def __init__(self, **kwargs):
         self.voicebase = VoiceBaseV3Client(token = kwargs['token'])
-        self.media_directory = kwargs['media_directory']
+
+        media_directory = kwargs.get('media_directory')
+        input_media_id_column = kwargs.get('input_media_id_column')
+        default_configuration = kwargs.get('default_configuration', {})
+
+        self.reader = BatchUploadListReader(
+            media_directory = media_directory,
+            media_id_column = input_media_id_column,
+            default_configuration = default_configuration
+        )
 
     # Data classes woule be great here, when Python 3.7 is common
     class UploadItem:
@@ -151,12 +170,29 @@ class BatchUpload:
                     row = row
                 )
 
-    def upload_from_media_filename_list(self, list_path, results_path):
-        input_generator = BatchUploadListReader(
-            media_directory = self.media_directory
-        ).MediaFilenames(
-            list_filepath = list_path
-        )
+    def process(self, **kwargs):
+        input_media_filename_list = kwargs.get('input_media_filename_list')
+        input_csv = kwargs.get('input_csv')
+        is_media_update = kwargs.get('update_existing_media')
+        input_media_id_column = kwargs.get('input_media_id_column')
+        results_path = kwargs.get('results_path')
+
+
+
+        if input_media_filename_list is not None:
+            input_generator = self.reader.MediaFilenames(
+                list_filepath = input_media_filename_list
+            )
+        elif input_csv is not None:
+            if is_media_update:
+                input_generator = self.reader.CsvMediaUpdates(
+                    csv_filepath = input_csv
+                )
+            else:
+                raise Exception('only media update csv input implemented')
+        else:
+            raise Exception('other input types not supported')
+
         uploads_generator = self.Uploads(input_generator)
         results_generator = self.Results(uploads_generator, results_path)
 
@@ -184,12 +220,15 @@ class BatchUpload:
                     configuration = input.configuration
                 )
 
-            return response
         elif input.is_media_update:
-            raise Exception('not implemented')
+            response = self.voicebase.media[input.media_id].post(
+                configuration = input.configuration,
+                metadata = input.metadata
+            )
         else:
             raise Exception('no known type - none of: file, url, media update')
 
+        return response
 
 
 if __name__ == "__main__":
