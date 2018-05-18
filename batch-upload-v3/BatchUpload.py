@@ -155,7 +155,6 @@ class BatchUpload:
                     row = row
                 )
 
-    # TODO: replace upload() with generator-based implementation here
     def upload_from_media_filename_list(self, list_path, results_path):
         media_filenames_generator = self.MediaFilenames(list_path)
         uploads_generator = self.Uploads(media_filenames_generator)
