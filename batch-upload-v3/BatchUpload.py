@@ -81,7 +81,7 @@ def main():
     parser.add_argument(
         '--token',
         help = 'Bearer token for /v3 API (defaults to $TOKEN)',
-        default = os.environ['TOKEN'],
+        default = os.environ.get('TOKEN'),
         required = False
     )
 
