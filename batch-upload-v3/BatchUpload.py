@@ -184,12 +184,14 @@ class BatchUpload:
                 list_filepath = input_media_filename_list
             )
         elif input_csv is not None:
-            if is_media_update:
-                input_generator = self.reader.CsvMediaUpdates(
+            if not is_media_update:
+                input_generator = self.reader.CsvNewUploads(
                     csv_filepath = input_csv
                 )
             else:
-                raise Exception('only media update csv input implemented')
+                input_generator = self.reader.CsvMediaUpdates(
+                    csv_filepath = input_csv
+                )
         else:
             raise Exception('other input types not supported')
 

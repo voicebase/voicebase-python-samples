@@ -29,8 +29,6 @@ class BatchUploadInput:
             self.id = self.media_filename
 
             self.mime_type = kwargs.get('mime_type')
-            print('kwargs', kwargs)
-            print('mime_type', self.mime_type)
         else:
             raise Exception('no known type - none of: file, url, media update')
 
@@ -91,10 +89,48 @@ class BatchUploadMediaUpdateInput(BatchUploadInput):
             metadata = metadata
         )
 
+class BatchUploadNewMediaInput(BatchUploadInput):
+    def __init__(self, **kwargs):
+        configuration = kwargs.get('configuration')
+        metadata = kwargs.get('metadata')
+
+        media_filename = kwargs.get('media_filename')
+        media_filepath = kwargs.get('media_filepath')
+        media_url = kwargs.get('media_url')
+
+        super_kwargs = {
+            'configuration': configuration,
+            'metadata': metadata
+        }
+
+        if not media_url:
+            if not media_filename and media_filepath:
+                raise Exception(
+                    'Need both media_filename/media_filepath: ' + str(kwargs)
+                )
+
+            super_kwargs['is_file'] = True
+            super_kwargs['media_filename'] = media_filename
+            super_kwargs['media_filepath'] = media_filepath
+        else:
+            if media_filename or media_filepath:
+                raise Exception(
+                    'Cannot use media_url and media_filename/media_filepath: ' +
+                    str(kwargs)
+                )
+            super_kwargs['is_url'] = True
+            super_kwargs['media_url'] = media_url
+
+        super().__init__(**super_kwargs)
+
 class BatchUploadListReader:
     def __init__(self, **kwargs):
         self.media_directory = kwargs.get('media_directory', './')
         self.media_id_column = kwargs.get('media_id_column', 'mediaId')
+        self.media_filename_column = kwargs.get(
+            'media_filename_column',
+            'media'
+        )
         self.default_metadata = kwargs.get('default_metadata', {})
         self.default_configuration = kwargs.get('default_configuration', {})
 
@@ -110,6 +146,31 @@ class BatchUploadListReader:
                     media_filepath = media_filepath,
                     media_filename = media_filename
                 )
+
+    def CsvNewUploads(self, csv_filepath):
+        for row in self._CsvReader(csv_filepath):
+
+            metadata = self._extend_metadata(row)
+
+            input_kwargs = {
+                'configuration': self.default_configuration,
+                'metadata': metadata
+            }
+
+            if self.media_filename_column in row:
+                media_filename = row[self.media_filename_column]
+                del row[self.media_filename_column]
+
+                input_kwargs['media_filename'] = media_filename
+
+                media_filepath = os.path.join(
+                    self.media_directory,
+                    media_filename
+                )
+
+                input_kwargs['media_filepath'] = media_filepath
+
+            yield BatchUploadNewMediaInput(**input_kwargs)
 
     def CsvMediaUpdates(self, csv_filepath):
         for row in self._CsvReader(csv_filepath):
