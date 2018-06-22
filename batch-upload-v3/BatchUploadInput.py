@@ -17,7 +17,7 @@ class BatchUploadInput:
             self.media_url = kwargs.get('media_url')
             if not self.media_url:
                 raise Exception('is_url is True but no valid media_url')
-            self.id = media_url
+            self.id = self.media_url
         elif self.is_file:
             self.media_filepath = kwargs.get('media_filepath')
             if not self.media_filepath:
@@ -131,6 +131,10 @@ class BatchUploadListReader:
             'media_filename_column',
             'media'
         )
+        self.media_url_column = kwargs.get(
+            'media_url_column',
+            'mediaUrl'
+        )
         self.default_metadata = kwargs.get('default_metadata', {})
         self.default_configuration = kwargs.get('default_configuration', {})
 
@@ -156,10 +160,10 @@ class BatchUploadListReader:
                 'configuration': self.default_configuration,
                 'metadata': metadata
             }
-
+            
             if self.media_filename_column in row:
                 media_filename = row[self.media_filename_column]
-                del row[self.media_filename_column]
+                del metadata['extended'][self.media_filename_column]
 
                 input_kwargs['media_filename'] = media_filename
 
@@ -169,6 +173,12 @@ class BatchUploadListReader:
                 )
 
                 input_kwargs['media_filepath'] = media_filepath
+
+            elif self.media_url_column in row:
+                media_url = row[self.media_url_column]
+                del metadata['extended'][self.media_url_column]
+
+                input_kwargs['media_url'] = media_url
 
             yield BatchUploadNewMediaInput(**input_kwargs)
 

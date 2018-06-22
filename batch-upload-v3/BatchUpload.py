@@ -92,6 +92,7 @@ def main():
         token = args.token,
         media_directory = args.inputMediaDirectory,
         input_media_id_column = args.inputMediaIdColumn,
+        input_media_url_column = args.inputMediaUrlColumn,
         default_configuration = args.configuration
     )
 
@@ -109,11 +110,13 @@ class BatchUpload:
 
         media_directory = kwargs.get('media_directory')
         input_media_id_column = kwargs.get('input_media_id_column')
+        input_media_url_column = kwargs.get('input_media_url_column')
         default_configuration = kwargs.get('default_configuration', {})
 
         self.reader = BatchUploadListReader(
             media_directory = media_directory,
             media_id_column = input_media_id_column,
+            media_url_column = input_media_url_column,
             default_configuration = default_configuration
         )
 
@@ -211,7 +214,11 @@ class BatchUpload:
     # ********* def upload one ***********
     def upload_one(self, input): #filepath, filename, configuration):
         if input.is_url:
-            raise Exception('not implemented')
+            response = self.voicebase.media.post(
+                media_url = input.media_url,
+                configuration = input.configuration,
+                metadata = input.metadata
+            )
         elif input.is_file:
             with open(input.media_filepath, 'rb') as media_file:
 
@@ -219,7 +226,8 @@ class BatchUpload:
                     media = media_file,
                     filename = input.media_filename,
                     mime_type = input.mime_type,
-                    configuration = input.configuration
+                    configuration = input.configuration,
+                    metadata = input.metadata
                 )
 
         elif input.is_media_update:
