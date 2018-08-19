@@ -137,6 +137,7 @@ class BatchUploadListReader:
         )
         self.default_metadata = kwargs.get('default_metadata', {})
         self.default_configuration = kwargs.get('default_configuration', {})
+        self.custom_vocab_columns = kwargs.get('custom_vocab_columns', [])
 
     def MediaFilenames(self, list_filepath):
         with open(list_filepath, 'r') as list_file:
@@ -155,12 +156,13 @@ class BatchUploadListReader:
         for row in self._CsvReader(csv_filepath):
 
             metadata = self._extend_metadata(row)
+            configuration = self._extend_configuration(row)
 
             input_kwargs = {
-                'configuration': self.default_configuration,
+                'configuration': configuration,
                 'metadata': metadata
             }
-            
+
             if self.media_filename_column in row:
                 media_filename = row[self.media_filename_column]
                 del metadata['extended'][self.media_filename_column]
@@ -211,6 +213,38 @@ class BatchUploadListReader:
             metadata['extended'] = extended_metadata
         return metadata
 
+    def _extend_configuration(self, row):
+        custom_vocab_columns = self.custom_vocab_columns
+        if custom_vocab_columns is None or len(custom_vocab_columns) == 0:
+            return self.default_configuration
+
+        if type(self.default_configuration) is str:
+            configuration = json.loads(self.default_configuration)
+        else:
+            configuration = { ** self.default_configuration }
+
+        if not ('vocabularies' in configuration):
+            configuration['vocabularies'] = []
+
+        vocabularies = configuration['vocabularies']
+
+        flat_terms = [
+            row.get(column)
+            for column
+            in self.custom_vocab_columns
+        ]
+
+        terms = [
+            { 'term': term, 'weight': 2 }
+            for term
+            in flat_terms
+            if term is not None
+        ]
+
+        additional_vocabulary = { 'terms': terms }
+        vocabularies.append(additional_vocabulary)
+
+        return configuration
 
 if __name__ == '__main__':
     reader = BatchUploadListReader(media_directory = './')

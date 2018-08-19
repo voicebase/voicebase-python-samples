@@ -79,6 +79,13 @@ def main():
         required = True
     )
     parser.add_argument(
+        '--inputCustomVocabColumn',
+        help = 'name of a column with extra custom vocabulary (can repeat)',
+        action = 'append',
+        required = False,
+        default = [ ]
+    )
+    parser.add_argument(
         '--token',
         help = 'Bearer token for /v3 API (defaults to $TOKEN)',
         default = os.environ.get('TOKEN'),
@@ -88,14 +95,21 @@ def main():
 
     args = parser.parse_args()
 
+    # Least Surprise warning:
+    # argparse's append behavior gathers customVocabColumn arguments
+    # into an array, so custom_vocab_columns (plural) = ...
+    #  args.customVocabColumn (singular, but really an array) ...
+    #  is intentional, and not a mistake
+
     batch_upload = BatchUpload(
         token = args.token,
         media_directory = args.inputMediaDirectory,
         input_media_id_column = args.inputMediaIdColumn,
         input_media_url_column = args.inputMediaUrlColumn,
-        default_configuration = args.configuration
+        default_configuration = args.configuration,
+        custom_vocab_columns = args.inputCustomVocabColumn
     )
-
+    
     batch_upload.process(
         input_media_filename_list = args.inputMediaFilenameList,
         input_csv = args.inputCsv,
@@ -112,12 +126,14 @@ class BatchUpload:
         input_media_id_column = kwargs.get('input_media_id_column')
         input_media_url_column = kwargs.get('input_media_url_column')
         default_configuration = kwargs.get('default_configuration', {})
+        custom_vocab_columns = kwargs.get('custom_vocab_columns', [])
 
         self.reader = BatchUploadListReader(
             media_directory = media_directory,
             media_id_column = input_media_id_column,
             media_url_column = input_media_url_column,
-            default_configuration = default_configuration
+            default_configuration = default_configuration,
+            custom_vocab_columns = custom_vocab_columns
         )
 
     # Data classes woule be great here, when Python 3.7 is common
