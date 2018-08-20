@@ -238,7 +238,7 @@ class BatchUploadListReader:
             { 'term': term, 'weight': 2 }
             for term
             in flat_terms
-            if term is not None
+            if (term is not None) and (len(term) > 0)
         ]
 
         additional_vocabulary = { 'terms': terms }
