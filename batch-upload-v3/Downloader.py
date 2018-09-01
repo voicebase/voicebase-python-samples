@@ -99,7 +99,7 @@ class Downloader:
 
         args = parser.parse_args()
 
-        downloader = cls._initialize_downloader(cls, args)
+        downloader = cls._initialize_downloader(args)
 
         downloader.process()
 
